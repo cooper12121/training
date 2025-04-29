@@ -1,5 +1,7 @@
 from openai import OpenAI
 from dotenv import load_dotenv
+import vllm
+
 import os
 load_dotenv()
 # Set OpenAI's API key and API base to use vLLM's API server.

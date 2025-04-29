@@ -1,9 +1,9 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES=0,2
+# export CUDA_VISIBLE_DEVICES=0,2
 
 
-source ./env
+source ./.env
 # 定义变量
 HOST="0.0.0.0"
 PORT=8000
@@ -12,7 +12,7 @@ MAX_LEN=2048
 
 
 CURRENT_TIME=$(date "+%Y-%m-%d_%H-%M-%S")
-LOG_FILE="/mnt/nlp/gaoqiang/training/server/logs/vllm_openai_server_$CURRENT_TIME.log"
+LOG_FILE="../logs/vllm_openai_server_$CURRENT_TIME.log"
 exec > "$LOG_FILE" 2>&1
 
 echo "Starting vLLM server with the following configuration:"
@@ -27,5 +27,7 @@ vllm serve \
   --model "$MODEL_PATH" \
   --host "$HOST" \
   --port "$PORT" \
-  --tensor-parallel-size "$TP_SIZE" \
-  --max-model-len "$MAX_LEN"
+  --max-model-len "$MAX_LEN" \
+  --enable-reasoning True \
+  --reasoning-parser deepseek_r1 
+  # --tensor-parallel-size "$TP_SIZE" \

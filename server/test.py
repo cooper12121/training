@@ -1,17 +1,13 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from dotenv import load_dotenv
 import os
-load_dotenv()
+load_dotenv("/Users/qianggao/project/intern/training/server/.env")
 
 model_name = os.getenv("MODEL_PATH")
 
 # load the tokenizer and the model
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    torch_dtype="auto",
-    device_map="auto"
-)
+
 
 # prepare the model input
 prompt = "Give me a short introduction to large language model."
@@ -24,6 +20,12 @@ text = tokenizer.apply_chat_template(
     add_generation_prompt=True,
     enable_thinking=True # Switch between thinking and non-thinking modes. Default is True.
 )
+
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype="auto",
+    device_map="auto"
+)
 model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
 # conduct text completion
@@ -32,7 +34,9 @@ generated_ids = model.generate(
     max_new_tokens=32768
 )
 output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist() 
-
+all_output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist()
+all_content = tokenizer.decode(all_output_ids, skip_special_tokens=True).strip("\n")
+print("all content:", all_content)
 # parsing thinking content
 try:
     # rindex finding 151668 (</think>)
