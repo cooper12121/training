@@ -1,23 +1,4 @@
-# from openai import OpenAI
-# # Set OpenAI's API key and API base to use vLLM's API server.
-# openai_api_key = "EMPTY"
-# openai_api_base = "http://localhost:8000/v1"
-# client = OpenAI(
-#     api_key=openai_api_key,
-#     base_url=openai_api_base,
-# )
-# messages = None
-# chat_response = client.chat.completions.create(
-#     model="Qwen/Qwen2.5-1.5B-Instruct",
-#     messages=messages,
-#     extra_body = {
-#         "top_k":50,
-#         "repetition_penalty":1.05,
-#         # "stop_token_ids":
-#     }
-    
-# )
-# print("Chat response:", chat_response)   
+  
 
 import openai
 import requests
@@ -25,114 +6,120 @@ import json
 import logging
 import time
 import random
-from typing import Union
+from typing import Generator, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from dotenv import load_dotenv
-import os
+from openai import OpenAI
 
+import os
+load_dotenv("./.env")
 # 获取变量
 model_path = os.getenv("MODEL_PATH")
 openai_api_key = os.getenv("API_KEY")
 openai_api_base = os.getenv("API_BASE")
 
-openai_api_key = "EMPTY"
-openai_api_base = "http://localhost:8000/v1"
+
 REQUEST_UNSAFE_STR = 'error_code=content_filter'
-class Client(object):
+
+class Client(OpenAI):
     def __init__(self,
-                 model_name: str = "gpt-3.5-turbo",
+                 model_name: str = model_path,
                  api_key=openai_api_key,
                  url: str = openai_api_base,
                  ):
         self.api_key = api_key
         self.model_name = model_name
-        self.url = url
-        # if logdir is None:
-        #     logdir = ROOT / 'data/llm_logs'
-        # self.logdir = Path(logdir)
+        self.base_url = url
+
+        logging.info(f"model_path: {self.model_name}")
+        logging.info(f"openai_api_key: {self.api_key}")
+        logging.info(f"openai_api_base: {self.base_url}")
 
     def __call__(self, *args, **kwargs):
         return self.complete(*args, **kwargs)
-
-    def complete(self, messages: list[dict],
-                 content_only=False,
-                 stream=False,
-                 **kwargs) -> Union[list[str], dict, requests.Response]:
-        """包括拿到response之后的处理
-
-        :param messages: list[Dict]
-        :param content_only: bool, 是否只提取文本；
-            if True，返回 list[str]list
-        :param stream: bool, 是否流式输出；
-            if True，返回生成器（Response），需要额外解码
-        :param kwargs:
-        :return:
-        """
-
-        resp = self._complete(messages, stream=stream, **kwargs)
-        if stream:
-            return resp  # setting ``stream=True`` gets the response (Generator)
-
-        if content_only:
-            if 'choices' in resp:
-                choices = resp['choices']
-                return [x['message'].get('content', None) for x in choices]
-        return resp
-
     def _complete(self,
                   messages: list[dict],
+                  stream: bool = False,
                   n=1,
+                  top_k=50,
                   max_tokens=1500,
                   temperature: float = 0.8,
+                  repetition_penalty: float = 1.05,
                   **kwargs) -> requests.Response:
-        """只负责请求api，返回response，不做后处理
-
-        :param messages:
-        :param content_only:
-        :param n: the number of candidate model generates
-        :param max_tokens: max number tokens of the completion (prompt tokens are not included)
-        :param kwargs:
-        :return:
         """
-        openai.api_key = self.api_key
-        openai.api_base = self.url
-        response = openai.ChatCompletion.create(
+          执行模型调用 
+        """
+        chat_response = self.chat.completions.create(
             model=self.model_name,
             messages=messages,
-            n=n, temperature=temperature,
-            max_tokens=max_tokens,
+            extra_body = {
+                "top_k":top_k,
+                "n":n,
+                "max_tokens":max_tokens,
+                "repetition_penalty":repetition_penalty,
+                "temperature":temperature,
+                # "stop_token_ids":
+            },
+            stream=stream,
             **kwargs
         )
-        return response
+        return chat_response
+    
+    
+    def complete(self, messages: list[dict],
+                 stream=False,
+                 **kwargs) -> Union[requests.Response,dict,str,Generator[str, None]]:
+        """
+            处理api请求的返回结果
+                封装非streaming格式下的结果
+                处理streaming格式下的结果
+        """
 
-def process_msg(model_name: str,
-               messages: list[dict],
-               max_try: int = 3,
-               response_only: bool = False,
-               id: str = None,
-               **generate_kwargs) -> tuple[str, list[dict],requests.Response ,str]:
+        chat_response = self._complete(messages, stream=stream, **kwargs)
+        if stream:
+            for chunk in chat_response:
+                # print(chunk.choices[0].delta.content, end='', flush=True)
+                yield chunk.choices[0].delta.content
+           
+        else:
+            return {
+                "id": chat_response.id,
+                "model": chat_response.model,
+                "content": chat_response.choices[0].message.content,
+                "finish_reason": chat_response.choices[0].finish_reason,
+                "reasoning_content": chat_response.choices[0].message.model_extra['reasoning_content'],                
+                "usage": {
+                    "total_tokens": chat_response.usage.total_tokens,
+                    "prompt_tokens": chat_response.usage.prompt_tokens,
+                    "completion_tokens": chat_response.usage.completion_tokens
+                }
+            }
+
+def process_msg(
+            messages: list[dict],
+            model_name: str=model_path,
+            stream: bool = False,
+            max_try: int = 3,
+            id: str = None,
+            **generate_kwargs) -> tuple[str, list[dict], Union[dict,Generator]]:
         """ 
-        请求单条响应
-        :param model_name: str, 模型名称
-        :param messages: list[Dict], 消息列表
-        :param max_try: int, 最大尝试次数
-        :param response_only: bool, 是否返回结构化响应，false只返回相应文本
-        :param id: str, 消息ID
-        :return: tuple, (id, messages, response, res)"""
+           parameters:
+              messages: list[dict]: 消息列表
+              model_name: str: 模型名称
+              max_try: int: 最大尝试次数
+              id: str: 消息ID
+            
+        """
         if messages[-1].get("role")=="user" and messages[-1].get("content")==None:
-            return (id, messages, None, None)
+            logging.info(f"*** empty user message: {messages} ***")
+            return (id, messages, None)
         
         for i in range(max_try):
             try:
                 llm = Client(model_name=model_name)
-                if response_only:
-                    print("***respnse only***")
-                    resp = llm._complete(messages,**generate_kwargs)
-                    return (id, messages, resp, None)
-                else:
-                    res = llm.complete(messages, content_only=True,**generate_kwargs)
-                    return (id, messages, None, res[0])
+                res = llm.complete(messages, stream,**generate_kwargs)
+                return (id, messages,res)
             except Exception as e:
                 # openai.error.InvalidRequestError: content is unsafe, so it was filtered
                 # openai.error.RateLimitError: 只有这种情况可以sleep and retry
@@ -143,46 +130,56 @@ def process_msg(model_name: str,
                     return _msg
                 time.sleep(random.randint(10, 12))
                 continue
-        
 
 def LLM_Caller(
         data_list: list[list[dict]],
         model_name: str,
         max_workers: int = 1,
         max_try: int = 3,
-        response_only: bool = False,
-        **generate_kwargs,
-        
-    ):
+        text_only: bool = False,
+        stream: bool = False,
+        **generate_kwargs, 
+    )->Generator:
     
-    with ThreadPoolExecutor(max_workers=max_workers) as executor: # 5 is just an example, adjust according to your needs
-        futures = {executor.submit(process_msg, id=id, msg=msg,max_try=max_try,model_name=model_name,response_only = response_only ,**generate_kwargs): id for id, msg in tqdm(enumerate(data_list))}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor: 
+        futures = []
+        for id, msg in tqdm(enumerate(data_list)):
+            future = executor.submit(
+                process_msg,
+                id=id,
+                messages=msg,
+                max_try=max_try,
+                model_name=model_name,
+                stream=stream,
+                **generate_kwargs
+            )
+            futures.append(future)
 
         count = 0
         for future in tqdm(as_completed(futures), total=len(futures), ncols=70):
             try:
-                id, messages, resp, res_text = future.result()
+                id, messages, resp = future.result()
+                logging.info(f"id: {id}")
                 logging.info(f"prompt:\n{messages}")
-                
-                if response_only:
-                    # 返回完整的结构化响应
-                    logging.info(f"response:\n{resp.json()}")
-                    data_list[id].append(resp.json())
-                    yield data_list[id]
+                logging.info(f"response:\n{resp}")
 
+                if text_only:
+                    # 只返回响应文本内容
+                    data_list[id].append({
+                        "role": "assistant",
+                        "content": resp['content'].strip()
+                    })
                 else:
-                    # 返回文本响应内容
-                    logging.info(f"reponse:\n{res_text}\n")
-                    data_list[id].append(
-                        {"role": "assistant", "content": res_text}
-                    )
-                    yield data_list[id]
-                
+                    # 返回完整的响应内容
+                    data_list[id].append({
+                        "role": "assistant", 
+                         "content": resp.strip()
+                    })
+                yield id,data_list[id]
             except Exception as e:
-                print("error:",e)
-                count+=1
-            
-    print(f"total error number:{count}")
+                print("error:", e)
+                count += 1
+    logging.info(f"total error number:{count}")
 
 
 def load_dataset():
@@ -196,11 +193,7 @@ def load_dataset():
     dataset.to_json(f"/Users/qianggao/project/intern/rag/dataset/{dataset_name}/{subset}/{split}.json")
 
 
-def Data_Process(intput_file:str, output_file:str):
-    
-
-
-
+def data_process(input_path:str, output_path:str):
     # ToDO: 这里需要根据实际数据进行处理,datalist
     data_list = None
 
@@ -223,7 +216,26 @@ def Data_Process(intput_file:str, output_file:str):
     )
 
     # 输出文件
-    with open(output_file, "w") as f:
-        for result in result_generator:
-            json.dump(result, f)
+    with open(output_path, "w") as f:
+        for id,response in result_generator:
+            json.dump({
+                "id": id,
+                "response": response
+            }, f, ensure_ascii=False, indent=4)
             f.write("\n")
+           
+
+if __name__ == "__main__":
+    log_dir = "../logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    logging.basicConfig(
+        filename=f"../logs/vllm_openai_client_multithread_{time_str}.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler("vllm_openai_client_multithread.log"),
+            logging.StreamHandler()
+        ]
+    )

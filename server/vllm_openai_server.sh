@@ -2,8 +2,8 @@
 
 export CUDA_VISIBLE_DEVICES=0
 
-# 读取环境变量
-source ./.env
+# 读取环境变量,sh中不支持source,使用.
+. ./.env
 
 # 定义变量
 # HOST="0.0.0.0"
@@ -29,8 +29,7 @@ echo "TP_SIZE: $TP_SIZE"
 echo "MAX_LEN: $MAX_LEN"
 echo "Visible GPUs: $CUDA_VISIBLE_DEVICES"
 
-vllm serve \
-  --model "$MODEL_PATH" \
+vllm serve $MODEL_PATH \
   --host "$HOST" \
   --port "$PORT" \
   --max-model-len "$MAX_LEN" \
