@@ -1,17 +1,23 @@
 #!/bin/bash
 
-# export CUDA_VISIBLE_DEVICES=0,2
+export CUDA_VISIBLE_DEVICES=0
 
-
+# 读取环境变量
 source ./.env
+
 # 定义变量
-HOST="0.0.0.0"
-PORT=8000
-TP_SIZE=2
+# HOST="0.0.0.0"
+# PORT=8000
+TP_SIZE=1
+PIPELINE_PARALLEL_SIZE=1
+
 MAX_LEN=2048
 
 
 CURRENT_TIME=$(date "+%Y-%m-%d_%H-%M-%S")
+
+LOG_DIR="../logs"
+mkdir -p "$LOG_DIR"
 LOG_FILE="../logs/vllm_openai_server_$CURRENT_TIME.log"
 exec > "$LOG_FILE" 2>&1
 
@@ -29,5 +35,6 @@ vllm serve \
   --port "$PORT" \
   --max-model-len "$MAX_LEN" \
   --enable-reasoning True \
-  --reasoning-parser deepseek_r1 
-  # --tensor-parallel-size "$TP_SIZE" \
+  --reasoning-parser deepseek_r1 \
+  --tensor-parallel-size "$TP_SIZE" \
+  --pipeline-parallel-size "$PIPELINE_PARALLEL_SIZE" 

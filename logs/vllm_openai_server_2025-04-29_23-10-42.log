@@ -1,0 +1,65 @@
+Starting vLLM server with the following configuration:
+MODEL: /Users/qianggao/project/intern/ckpt/Qwen3-0.6B
+HOST: 0.0.0.0
+PORT: 8000
+TP_SIZE: 2
+MAX_LEN: 2048
+Visible GPUs: 0,2
+INFO 04-29 23:10:45 [importing.py:17] Triton not installed or not compatible; certain GPU-related functions will not be available.
+WARNING 04-29 23:10:45 [importing.py:28] Triton is not installed. Using dummy decorators. Install it via `pip install triton` to enable kernelcompilation.
+INFO 04-29 23:10:45 [importing.py:53] Triton module has been replaced with a placeholder.
+INFO 04-29 23:10:46 [__init__.py:239] Automatically detected platform cpu.
+Traceback (most recent call last):
+  File "/Users/qianggao/project/miniconda3/envs/vllm/bin/vllm", line 5, in <module>
+    from vllm.entrypoints.cli.main import main
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/entrypoints/cli/main.py", line 7, in <module>
+    import vllm.entrypoints.cli.benchmark.main
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/entrypoints/cli/benchmark/main.py", line 6, in <module>
+    import vllm.entrypoints.cli.benchmark.throughput
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/entrypoints/cli/benchmark/throughput.py", line 4, in <module>
+    from vllm.benchmarks.throughput import add_cli_args, main
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/benchmarks/throughput.py", line 18, in <module>
+    from vllm.benchmarks.datasets import (AIMODataset, BurstGPTDataset,
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/benchmarks/datasets.py", line 34, in <module>
+    from vllm.lora.utils import get_adapter_absolute_path
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/lora/utils.py", line 15, in <module>
+    from vllm.lora.fully_sharded_layers import (
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/lora/fully_sharded_layers.py", line 14, in <module>
+    from vllm.lora.layers import (ColumnParallelLinearWithLoRA,
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/lora/layers.py", line 29, in <module>
+    from vllm.model_executor.layers.logits_processor import LogitsProcessor
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/model_executor/layers/logits_processor.py", line 13, in <module>
+    from vllm.model_executor.layers.vocab_parallel_embedding import (
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/vllm/model_executor/layers/vocab_parallel_embedding.py", line 140, in <module>
+    def get_masked_input_and_mask(
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/__init__.py", line 2536, in fn
+    return compile(
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/__init__.py", line 2565, in compile
+    return torch._dynamo.optimize(
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 842, in optimize
+    return _optimize(rebuild_ctx, *args, **kwargs)
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 896, in _optimize
+    backend = get_compiler_fn(backend)
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 783, in get_compiler_fn
+    from .repro.after_dynamo import wrap_backend_debug
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/repro/after_dynamo.py", line 16, in <module>
+    from torch._dynamo.debug_utils import (
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/debug_utils.py", line 25, in <module>
+    from torch._dynamo.testing import rand_strided
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/testing.py", line 27, in <module>
+    from torch._dynamo.backends.debugging import aot_eager
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_dynamo/backends/debugging.py", line 10, in <module>
+    from functorch.compile import min_cut_rematerialization_partition
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/functorch/compile/__init__.py", line 2, in <module>
+    from torch._functorch.aot_autograd import (
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_functorch/aot_autograd.py", line 36, in <module>
+    from torch._inductor.output_code import OutputCode
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_inductor/output_code.py", line 47, in <module>
+    from torch._inductor.cudagraph_utils import (
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_inductor/cudagraph_utils.py", line 10, in <module>
+    from torch._inductor.utils import InputType
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_inductor/utils.py", line 50, in <module>
+    from torch._inductor.runtime.hints import DeviceProperties
+  File "/Users/qianggao/project/miniconda3/envs/vllm/lib/python3.10/site-packages/torch/_inductor/runtime/hints.py", line 67, in <module>
+    from triton.compiler.compiler import AttrsDescriptor
+ModuleNotFoundError: No module named 'triton.compiler'; 'triton' is not a package
