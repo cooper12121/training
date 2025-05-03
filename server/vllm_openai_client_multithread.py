@@ -163,6 +163,10 @@ def LLM_Caller(
                 logging.info(f"prompt:\n{messages}")
                 logging.info(f"response:\n{resp}")
 
+                if stream:
+                    # TODO: 处理streaming格式下的结果
+                    continue
+
                 if text_only:
                     # 只返回响应文本内容
                     data_list[id].append({
@@ -173,7 +177,7 @@ def LLM_Caller(
                     # 返回完整的响应内容
                     data_list[id].append({
                         "role": "assistant", 
-                         "content": resp.strip()
+                         "content": resp
                     })
                 yield id,data_list[id]
             except Exception as e:
