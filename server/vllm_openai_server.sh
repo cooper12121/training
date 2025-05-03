@@ -2,7 +2,7 @@
 
 export CUDA_VISIBLE_DEVICES=0
 
-# 读取环境变量,sh中不支持source,使用.
+# 读取环境变量 sh中不支持source,使用.
 . ./.env
 
 # 定义变量
@@ -33,7 +33,7 @@ vllm serve $MODEL_PATH \
   --host "$HOST" \
   --port "$PORT" \
   --max-model-len "$MAX_LEN" \
-  --enable-reasoning True \
+  --enable-reasoning \
   --reasoning-parser deepseek_r1 \
   --tensor-parallel-size "$TP_SIZE" \
   --pipeline-parallel-size "$PIPELINE_PARALLEL_SIZE" 

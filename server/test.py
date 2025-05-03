@@ -11,6 +11,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # prepare the model input
 prompt = "Give me a short introduction to large language model. /think"
+prompt = "Give me a short introduction to large language model. /think"
 messages = [
     {"role": "user", "content": prompt}
 ]
@@ -28,27 +29,27 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
-# conduct text completion
-generated_ids = model.generate(
-    **model_inputs,
-    max_new_tokens=32768
-)
-output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist() 
-all_output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist()
-all_content = tokenizer.decode(all_output_ids, skip_special_tokens=True).strip("\n")
-print("all content:", all_content)
-# parsing thinking content
-try:
-    # rindex finding 151668 (</think>)
-    index = len(output_ids) - output_ids[::-1].index(151668)
-except ValueError:
-    index = 0
+# # conduct text completion
+# generated_ids = model.generate(
+#     **model_inputs,
+#     max_new_tokens=32768
+# )
+# output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist() 
+# all_output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist()
+# all_content = tokenizer.decode(all_output_ids, skip_special_tokens=True).strip("\n")
+# print("all content:", all_content)
+# # parsing thinking content
+# try:
+#     # rindex finding 151668 (</think>)
+#     index = len(output_ids) - output_ids[::-1].index(151668)
+# except ValueError:
+#     index = 0
 
-thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
-content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
+# thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
+# content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
 
-print("thinking content:", thinking_content)
-print("content:", content)
+# print("thinking content:", thinking_content)
+# print("content:", content)
 
 
 import json

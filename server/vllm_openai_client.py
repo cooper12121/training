@@ -45,10 +45,12 @@ while True:
             # "stop_token_ids":
             "temperature":0.5
         },
-        stream=True,
+        # stream=False,
         
     )
-    
+
+    # for chunk in chat_response:
+    #     print(chunk.choices[0].delta.content, end='', flush=True)
     """
     chat_response.choices[0].message.content
     chat_response.choices[0].finish_reason
@@ -76,12 +78,12 @@ while True:
     )
     chat_response = response.json() """
 
-    
+    print("Chat response:", chat_response)
 
     # print("Chat response:", dir(chat_response))
-    # print("chat_response.choices[0].message.content:", chat_response.choices[0].message.content)
+    print("chat_response.choices[0].message.content:", chat_response.choices[0].message.content)
     # print("chat_response.choices[0].finish_reason:", chat_response.choices[0].finish_reason)
-    # print("chat_response.choices[0].message.model_extra.reasoning_content:", chat_response.choices[0].message.model_extra['reasoning_content'])
+    print("chat_response.choices[0].message.model_extra.reasoning_content:", chat_response.choices[0].message.model_extra['reasoning_content'])
     # print("chat_response.usage.total_tokens:", chat_response.usage.total_tokens)
     # print("chat_response.usage.prompt_tokens:", chat_response.usage.prompt_tokens)
     # print("chat_response.usage.completion_tokens:", chat_response.usage.completion_tokens)
