@@ -89,7 +89,7 @@ echo "begin experiment ${EXPERIMENT_NAME}"
 CURRENT_TIME=$(date +'%m-%d-%Y_%H:%M:%S')
 
 # export CMD="deepspeed   --hostfile ${TMP_DIR}/hostfile --master_addr ${MASTER_ADDR} --master_port=${MASTER_PORT} finetune.py \
-export CMD="deepspeed  --include localhost:0,3 --master_port=${MASTER_PORT} train.py \
+export CMD="deepspeed  --include localhost:0,3 --master_port=${MASTER_PORT} train/train.py \
     --model_name_or_path $MODEL_PATH \
     --data_path $DATA_PATH \
     --eval_path $EVAL_PATH \
