@@ -1,33 +1,33 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from dotenv import load_dotenv
-import os
-load_dotenv("/Users/qianggao/project/intern/training/server/.env")
+# from transformers import AutoModelForCausalLM, AutoTokenizer
+# from dotenv import load_dotenv
+# import os
+# load_dotenv("/Users/qianggao/project/intern/training/server/.env")
 
-model_name = os.getenv("MODEL_PATH")
+# model_name = os.getenv("MODEL_PATH")
 
-# load the tokenizer and the model
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+# # load the tokenizer and the model
+# tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 
-# prepare the model input
-prompt = "Give me a short introduction to large language model. /think"
-prompt = "Give me a short introduction to large language model. /think"
-messages = [
-    {"role": "user", "content": prompt}
-]
-text = tokenizer.apply_chat_template(
-    messages,
-    tokenize=False,
-    add_generation_prompt=True,
-    # enable_thinking=True # Switch between thinking and non-thinking modes. Default is True.
-)
-print(text)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    torch_dtype="auto",
-    device_map="auto"
-)
-model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+# # prepare the model input
+# prompt = "Give me a short introduction to large language model. /think"
+# prompt = "Give me a short introduction to large language model. /think"
+# messages = [
+#     {"role": "user", "content": prompt}
+# ]
+# text = tokenizer.apply_chat_template(
+#     messages,
+#     tokenize=False,
+#     add_generation_prompt=True,
+#     # enable_thinking=True # Switch between thinking and non-thinking modes. Default is True.
+# )
+# print(text)
+# model = AutoModelForCausalLM.from_pretrained(
+#     model_name,
+#     torch_dtype="auto",
+#     device_map="auto"
+# )
+# model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
 # # conduct text completion
 # generated_ids = model.generate(
@@ -54,38 +54,13 @@ model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
 import json
 from transformers import AutoTokenizer,AutoModelForCausalLM
-
-
-def get_current_temperature(location: str, unit: str) -> float:
-    """
-    Get the current temperature at a location.
-    
-    Args:
-        location: The location to get the temperature for, in the format "City, Country"
-        unit: The unit to return the temperature in. (choices: ["celsius", "fahrenheit"])
-    Returns:
-        The current temperature at the specified location in the specified units, as a float.
-    """
-    return 22.  # A real function should probably actually get the temperature!
-
-def get_current_wind_speed(location: str) -> float:
-    """
-    Get the current wind speed in km/h at a given location.
-    
-    Args:
-        location: The location to get the temperature for, in the format "City, Country"
-    Returns:
-        The current wind speed at the given location in km/h, as a float.
-    """
-    return 6.  # A real function should probably actually get the wind speed!
-
-tools = [get_current_temperature, get_current_wind_speed]
+from test import tools
 
 
 
 messages = [
   {"role": "system", "content": "You are a bot that responds to weather queries. You should reply with the unit used in the queried location."},
-  {"role": "user", "content": "Hey, what's the temperature in Paris right now?"}
+  {"role": "user", "content": "Hey, what's the temperature and wind in Paris right now?"}
 ]
 documents = [
     {
@@ -102,16 +77,16 @@ documents = [
 # messages.append({"role": "assistant", "content":None ,"tool_calls": [{"type": "function", "function": tool_call}]})
 # messages.append({"role": "tool", "name": "get_current_temperature", "content": "22.0"})
 
-ckpt = "/mnt/nlp/gaoqiang/ckpt/DeepSeek-R1-Distill-Qwen-1.5B"
+ckpt = "/Users/qianggao/project/intern/ckpt/Hermes-2-Pro-Llama-3-8B"
 tokenizer = AutoTokenizer.from_pretrained(ckpt)
 # model  = AutoModelForCausalLM.from_pretrained(ckpt, device_map="cuda:0", torch_dtype="auto")
 
 
 inputs = tokenizer.apply_chat_template(
     messages,
-    # tools=tools,
+    tools=tools,
     documents=documents,
-    chat_template="rag",
+    # chat_template="rag",
     tokenize=False,
     # return_tensors="pt",
     # return_dict=True,

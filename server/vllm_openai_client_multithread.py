@@ -231,12 +231,12 @@ def LLM_Caller(
                     model_name=model_name,
                     stream=stream,
                     **generate_kwargs
-            )
+                )
                 data_list[id].append({
                         "role": "assistant", 
-                        "content": resp
+                        "content": res
                     })
-                    yield id,data_list[id]
+                yield id,data_list[id]
             except Exception as e:
                 print("error:", e)
 

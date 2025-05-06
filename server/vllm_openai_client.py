@@ -1,5 +1,6 @@
 from openai import OpenAI
 from dotenv import load_dotenv
+from test import tools
 import vllm
 import logging
 import os
@@ -46,7 +47,7 @@ while True:
             "temperature":0.5
         },
         # stream=False,
-        
+        tools=tools
     )
 
     # for chunk in chat_response:
