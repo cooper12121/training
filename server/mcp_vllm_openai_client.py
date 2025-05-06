@@ -1,65 +1,3 @@
-from openai import OpenAI
-from anthropic import Anthropic
-from dotenv import load_dotenv
-
-import vllm
-import logging
-import os
-import openai
-load_dotenv("/mnt/nlp/gaoqiang/project/training/server/.env")
-
-
-
-# Set OpenAI's API key and API base to use vLLM's API server.
-model_path = os.getenv("MODEl_PATH")
-openai_api_key = os.getenv("API_KEY")
-openai_api_base = os.getenv("API_BASE")
-
-logging.basicConfig(level=logging.INFO)
-
-logging.info(f"model_path: {model_path}")
-logging.info(f"openai_api_key: {openai_api_key}")
-logging.info(f"openai_api_base: {openai_api_base}")
-
-
-
-client =
-while True:
-    query = input("Please enter your query: ")
-    if query == "exit":
-        break
-    messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": query},
-        ]
-
-    # chat_response = openai.ChatCompletion.create   no longer supported
-    chat_response = client.chat.completions.create(
-        model=model_path,
-        messages=messages,
-        extra_body = {
-            "top_k":50,
-            "repetition_penalty":1.05,
-            # "stop_token_ids":
-            "temperature":0.5
-        },
-        # stream=False,
-        
-    )
-
-    print("Chat response:", chat_response)
-
-    # print("Chat response:", dir(chat_response))
-    print("chat_response.choices[0].message.content:", chat_response.choices[0].message.content)
-    # print("chat_response.choices[0].finish_reason:", chat_response.choices[0].finish_reason)
-    print("chat_response.choices[0].message.model_extra.reasoning_content:", chat_response.choices[0].message.model_extra['reasoning_content'])
-    # print("chat_response.usage.total_tokens:", chat_response.usage.total_tokens)
-    # print("chat_response.usage.prompt_tokens:", chat_response.usage.prompt_tokens)
-    # print("chat_response.usage.completion_tokens:", chat_response.usage.completion_tokens)
-    # print("chat_response.id:", chat_response.id)
-    # print("chat_response.model:", chat_response.model) 
-
-
 import asyncio
 from typing import Optional
 from contextlib import AsyncExitStack
@@ -88,6 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logging.info(f"model_path: {model_path}")
 logging.info(f"openai_api_key: {openai_api_key}")
 logging.info(f"openai_api_base: {openai_api_base}")
+logging.info(f"anthropic_api_key: {anthropic_api_key}")
 
 
 class MCPClient:
@@ -148,50 +87,72 @@ class MCPClient:
     async def call_llm(self, messages):
 
         # call llm
+        logging.info(f"Calling LLM with messages:\n {messages}")
         response = self.client.messages.create(
             model=model_path,
             max_tokens=1000,
             messages=messages,
             tools=available_tools
         )
+        return response
+    async def process_response(self, response, messages):
+        """
+        Process a response from the server and handle tool calls
+        
+        if need to call tools, append the tool calls to the messages list
+        and call the tools, then append the result to the messages list,then call the llm again
+        and return the final text
+        if not need to call tools, just return the final text
+        """
         
         
         # process response and handle tool calls
-        final_text = []
-
-        assistant_message_content = []
         if self.server_name == "OpenAI":
+            logging.info(f"response: \n{message}")
+            # warning whether the response finish reason is "tool_calls"
+            logging.warning(f"response finish reason: {response.choices[0].finish_reason}")
             message = response.choices[0].message
-            if message.content is None and message.tool_calls==[]:
-                # need to call tools, tool_calls=[], not sure whether content is None
-                tool_name = 
-            for content in response.content:
-                if content.type == 'text':
-                    final_text.append(content.text)
-                    assistant_message_content.append(content)
-                elif content.type == 'tool_use':
-                    tool_name = content.name
-                    tool_args = content.input
-
+           
+            if message.tool_calls!=[]:
+                logging.info(f"need to call tools")
+                
+                # or
+                messages.append(message)
+               
+            
+                # use response.choices[0].message.model_dump() transfer to dict
+                # tool_calls = message.dump()['tool_calls']
+                # messages.append(
+                   # {"role":"assistant", "content": None ,"tool_calls": tool_calls}
+                #)# whether content has impact on the result:message.content.strip()
+                    
+                # execute tool calls functions
+                for tool_call in message.tool_calls:
+                    tool_name = tool_call.name
+                    tool_args = tool_call.args
+                    
                     # Execute tool call
-                    result = await self.session.call_tool(tool_name, tool_args)
-                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                    logging.info(f"Calling tool {tool_name} with args {tool_args}")
 
-                    assistant_message_content.append(content)
-                    messages.append({
-                        "role": "assistant",
-                        "content": assistant_message_content
-                    })
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": content.id,
-                                "content": result.content
-                            }
-                        ]
-                    })
+                    tool_result = await self.session.call_tool(tool_name, tool_args)
+
+                    logging.info(f"Tool {tool_name} result: {result.content}")
+
+                    # Append tool result to the message
+                    messages.append(
+                        {   
+                            "role": "tool",
+                            "content": tool_result,
+                            "tool_call_id": tool_call.id
+                        }
+                    )
+                response = self.call_llm(messages)
+
+            return response.choices[0].message.model_dump()
+            # return response.choices[0].content
+        elif self.server_name == "Anthropic":
+            pass
+    
 
     async def process_query(self, query: str) -> str:
         """Process a query using Claude and available tools"""
@@ -199,52 +160,8 @@ class MCPClient:
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": query},
         ]
-       
-
-        
-        # Process response and handle tool calls
-        final_text = []
-
-        assistant_message_content = []
-        for content in response.content:
-            if content.type == 'text':
-                final_text.append(content.text)
-                assistant_message_content.append(content)
-            elif content.type == 'tool_use':
-                tool_name = content.name
-                tool_args = content.input
-
-                # Execute tool call
-                result = await self.session.call_tool(tool_name, tool_args)
-                final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
-
-                assistant_message_content.append(content)
-                messages.append({
-                    "role": "assistant",
-                    "content": assistant_message_content
-                })
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": content.id,
-                            "content": result.content
-                        }
-                    ]
-                })
-
-                # Get next response from Claude
-                response = self.anthropic.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=messages,
-                    tools=available_tools
-                )
-
-                final_text.append(response.content[0].text)
-
-        return "\n".join(final_text)
+        response = self.call_llm(messages)
+        return self.process_response(response, messages)['content']
 
     async def chat_loop(self):
         """Run an interactive chat loop"""
