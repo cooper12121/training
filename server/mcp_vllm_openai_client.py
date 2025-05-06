@@ -1,15 +1,15 @@
+import os
+import logging
 import asyncio
-from typing import Optional
+
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-
-
 from openai import OpenAI
 from anthropic import Anthropic
 from dotenv import load_dotenv
-from typing import Union
+from typing import Union,Optional
 
 load_dotenv("/mnt/nlp/gaoqiang/project/training/server/.env")
 
@@ -92,7 +92,7 @@ class MCPClient:
             model=model_path,
             max_tokens=1000,
             messages=messages,
-            tools=available_tools
+            tools=self.available_tools
         )
         return response
     async def process_response(self, response, messages):
@@ -136,7 +136,7 @@ class MCPClient:
 
                     tool_result = await self.session.call_tool(tool_name, tool_args)
 
-                    logging.info(f"Tool {tool_name} result: {result.content}")
+                    logging.info(f"Tool {tool_name} result: {tool_result}")
 
                     # Append tool result to the message
                     messages.append(
