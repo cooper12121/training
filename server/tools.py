@@ -7,9 +7,10 @@
 
 2. notices
     1. 注意封装tool的返回值，直接能够作为content,避免进一步编辑 to en: Ensure tools return values are directly usable as content to avoid further editing.
+
+3. 为了保持统一，所有的server都使用mcp_server.py中的函数
 """
 from transformers.utils import get_json_schema
-from transformers.utils import try_parse_tool_calls
 
 
 def get_current_temperature(location: str, unit: str) -> float:
