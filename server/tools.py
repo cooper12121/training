@@ -44,7 +44,7 @@ def get_current_wind_speed(location: str) -> float:
         "wind_speed": 15.0
         }
 
-tools = [get_current_temperature, get_current_wind_speed]
+tools = [get_json_schema(get_current_temperature), get_json_schema(get_current_wind_speed)]
 
 # schema = get_json_schema(get_current_temperature)
 # print(schema)

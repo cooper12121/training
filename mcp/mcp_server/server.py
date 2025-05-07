@@ -1,4 +1,8 @@
 # server.py
+"""
+1. 注意mcp 的tool 与openai api 不兼容 
+"""
+
 from mcp.server.fastmcp import FastMCP
 from typing import Any
 import httpx

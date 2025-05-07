@@ -42,6 +42,7 @@ class MCPClient:
                 api_key=openai_api_key,
                 base_url=openai_api_base,
             )
+            
         elif server_name == "Anthropic":
             self.client = Anthropic(
                 api_key=anthropic_api_key,
@@ -77,10 +78,20 @@ class MCPClient:
 
         # List available tools
         self.tools_list = await self.session.list_tools()
-        self.available_tools = [{
-            "name": tool.name,
-            "description": tool.description,
-            "input_schema": tool.inputSchema
+        # self.available_tools = [{
+        #     "name": tool.name,
+        #     "description": tool.description,
+        #     "input_schema": tool.inputSchema
+        # } for tool in self.tools_list.tools]
+        
+        # adjust for openai api
+        self.available_tools = [{ 
+            "type":"function",
+            "function":{
+                "name": tool.name,
+                "description": tool.description, 
+                "parameters": tool.inputSchema  
+            }
         } for tool in self.tools_list.tools]
         logging.info(f"Available tools: {self.available_tools}")
 
@@ -88,12 +99,27 @@ class MCPClient:
 
         # call llm
         logging.info(f"Calling LLM with messages:\n {messages}")
-        response = self.client.messages.create(
-            model=model_path,
-            max_tokens=1000,
-            messages=messages,
-            tools=self.available_tools
-        )
+        if self.server_name == "OpenAI":
+            response = self.client.chat.completions.create(
+                model=model_path,
+                max_tokens=1000,
+                messages=messages,
+                tools=self.available_tools
+            )
+        elif self.server_name == "Anthropic":
+            # For Anthropic, use the appropriate method to call the model
+            response = self.client.messages.create(
+                model=model_path,
+                max_tokens=1000,
+                messages=messages,
+                tools=self.available_tools,
+                extra_body = {
+                    "top_k":50,
+                    "repetition_penalty":1.05,
+                    # "stop_token_ids":
+                    "temperature":0.5
+                },
+            )
         return response
     async def process_response(self, response, messages):
         """
