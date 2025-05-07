@@ -110,12 +110,12 @@ async def get_forecast(latitude: float, longitude: float) -> str:
 
 
 @mcp.tool()
-async def get_current_temperature(location: str, unit: str) -> float:
+async def get_current_temperature(location: str, unit: str="celsius") -> float:
     """
     Get the current temperature at a location.
     
     Args:
-        location: The location to get the temperature for, in the format "City, Country"
+        location: The location to get the temperature for.
         unit: The unit to return the temperature in. (choices: ["celsius", "fahrenheit"])
     Returns:
         The current temperature at the specified location in the specified units, as a float.

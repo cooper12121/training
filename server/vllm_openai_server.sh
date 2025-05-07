@@ -36,4 +36,9 @@ vllm serve $MODEL_PATH \
   --enable-reasoning \
   --reasoning-parser deepseek_r1 \
   --tensor-parallel-size "$TP_SIZE" \
-  --pipeline-parallel-size "$PIPELINE_PARALLEL_SIZE" 
+  --pipeline-parallel-size "$PIPELINE_PARALLEL_SIZE" \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes 
+
+
+#  --enable-auto-tool-choice and --tool-call-parser
