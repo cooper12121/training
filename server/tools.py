@@ -4,6 +4,7 @@
 1. some related docs
     https://qwen.readthedocs.io/en/latest/framework/function_call.html#vllm
     https://docs.vllm.ai/en/v0.7.1/serving/openai_compatible_server.html
+    https://openai.github.io/openai-agents-python/mcp/
 
 2. notices
     1. 注意封装tool的返回值，直接能够作为content,避免进一步编辑 to en: Ensure tools return values are directly usable as content to avoid further editing.

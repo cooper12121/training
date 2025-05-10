@@ -5,7 +5,9 @@
 
 from mcp.server.fastmcp import FastMCP
 from typing import Any
+from pathlib import Path
 import httpx
+import subprocess
 
 # Create an MCP server
 mcp = FastMCP("Demo")
@@ -125,7 +127,37 @@ async def get_current_temperature(location: str, unit: str="celsius") -> float:
         "location": location,
         "unit": unit,
         "temperature": 22.0
-    }  
+    } 
+
+
+@mcp.tool()
+async def read_file(file_path: Path) -> str:
+    """ 
+    
+    """
+    command = [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        file_path,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("✅ 执行成功:")
+        print(result.stdout)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print("❌ 执行失败:")
+        print(e.stderr)
+
+# 调用示例
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport='stdio')
