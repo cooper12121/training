@@ -4,109 +4,115 @@ import asyncio
 import traceback
 import json
 import pdb
+import json5
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.server import Server
 from openai import OpenAI
 from openai.types.chat.chat_completion import ChatCompletion
 from anthropic import Anthropic
 from anthropic.types import Message
 from dotenv import load_dotenv
-from typing import Union,Optional
-
-load_dotenv("/mnt/nlp/gaoqiang/project/training/server/.env")
-
-# implyment of for python server
+from typing import Union,Optional,Any
 
 
-# Set OpenAI's API key and API base to use vLLM's API server.
-model_path = os.getenv("MODEl_PATH")
-openai_api_key = os.getenv("API_KEY")
-openai_api_base = os.getenv("API_BASE")
-anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-
+from mcp_server import MCPServer
 logging.basicConfig(level=logging.INFO)
 
-logging.info(f"model_path: {model_path}")
-logging.info(f"openai_api_key: {openai_api_key}")
-logging.info(f"openai_api_base: {openai_api_base}")
-logging.info(f"anthropic_api_key: {anthropic_api_key}")
 
+# implyment of for json servers
+
+def load_config(config_path: str) -> dict[str, Any]:
+        """Load server configuration from JSON file.
+
+        Args:
+            file_path: Path to the JSON configuration file.
+
+        Returns:
+            Dict containing server configuration.
+
+        Raises:
+            FileNotFoundError: If configuration file doesn't exist.
+            JSONDecodeError: If configuration file is invalid JSON.
+        """
+        with open(config_path, "r") as f:
+            return json5.load(f)
 
 class MCPClient:
-    def __init__(self,server_name:Union[str]="OpenAI"):
-        # Initialize session and client objects
-        self.session: Optional[ClientSession] = None
-        self.exit_stack = AsyncExitStack()
-        self.tools_list = None
-        self.available_tools = None
-        self.server_name = server_name
-        if server_name == "OpenAI":
-            self.client = OpenAI(
-                api_key=openai_api_key,
-                base_url=openai_api_base,
-            )
+    def __init__(self,servers:list[MCPServer],server_api:Union[str]="OpenAI",env_path:str="/mnt/nlp/gaoqiang/project/training/server/.env") -> None:
 
-        elif server_name == "Anthropic":
+        # Initialize configuration with environment variables.
+        self.load_env(env_path)
+
+        # Initialize session and client objects
+        self.servers =   servers     # list of server objects
+        self.available_tools = []
+
+        self.server_api = server_api
+        if server_api == "OpenAI":
+            self.client = OpenAI(
+                api_key=self.openai_api_key,
+                base_url=self.openai_api_base,
+            )
+            pass
+            
+        elif server_api == "Anthropic":
             self.client = Anthropic(
-                api_key=anthropic_api_key,
+                api_key=self.anthropic_api_key,
             )
         else:
             raise ValueError("Server name must be either 'OpenAI' or 'Anthropic'")
 
+    def load_env(self,env_path:str) -> None:
+        """Load environment variables from .env file."""
+        load_dotenv(env_path)
+        # Set OpenAI's API key and API base to use vLLM's API server.
+        self.model_path = os.getenv("self.model_path")
+        self.openai_api_key = os.getenv("API_KEY")
+        self.openai_api_base = os.getenv("API_BASE")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 
+        logging.info(f"self.model_path: {self.model_path}")
+        logging.info(f"openai_api_key: {self.openai_api_key}")
+        logging.info(f"openai_api_base: {self.openai_api_base}")
+        logging.info(f"anthropic_api_key: {self.anthropic_api_key}")
+    
     # methods will go here
-    async def connect_to_server(self, server_script_path: str):
-        """Connect to an MCP server
-
-        Args:
-            server_script_path: Path to the server script (.py or .js)
+    async def initialize_tools(self):
+        """Initialize tools and resources for the server.
         """
-        is_python = server_script_path.endswith('.py')
-        is_js = server_script_path.endswith('.js')
-        if not (is_python or is_js):
-            raise ValueError("Server script must be a .py or .js file")
-
-        command = "python" if is_python else "node"
-        server_params = StdioServerParameters(
-            command=command,
-            args=[server_script_path],
-            env=None
-        )
-
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-        self.stdio, self.write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
-
-        await self.session.initialize()
-
         # List available tools
-        self.tools_list = await self.session.list_tools()
-        # self.available_tools = [{
-        #     "name": tool.name,
-        #     "description": tool.description,
-        #     "input_schema": tool.inputSchema
-        # } for tool in self.tools_list.tools]
+        for server in self.servers:
+            await server.initialize()
+            tools =  await server.list_tools()
 
-        # adjust for openai api
-        self.available_tools = [{ 
-            "type":"function",
-            "function":{
-                "name": tool.name,
-                "description": tool.description, 
-                "parameters": tool.inputSchema  
-            }
-        } for tool in self.tools_list.tools]
+            for tool in tools:
+                # tools setting for openai api
+                self.available_tools.append({
+                    "type":"function",
+                    "function":{
+                        "name": tool.name,
+                        "description": tool.description, 
+                        "parameters": tool.inputSchema  
+                    }}
+                )
+                # tools setting for anthropic
+                # self.available_tools.append({
+                #     "name": tool.name,    
+                #     "description": tool.description,
+                #     "input_schema": tool.inputSchema
+                # })
         logging.info(f"Available tools: {self.available_tools}")
 
     async def call_llm(self, messages:list[dict])-> Union[ChatCompletion, Message]:
 
         # call llm
         logging.info(f"Calling LLM with messages:\n {messages}")
-        if self.server_name == "OpenAI":
+        if self.server_api == "OpenAI":
             response = self.client.chat.completions.create(
-                model=model_path,
+                model=self.model_path,
                 max_tokens=1000,
                 messages=messages,
                 tools=self.available_tools,
@@ -118,19 +124,14 @@ class MCPClient:
                 },
                 tool_choice="auto"
             )
-        elif self.server_name == "Anthropic":
+        elif self.server_api == "Anthropic":
             # For Anthropic, use the appropriate method to call the model
             response = self.client.messages.create(
-                model=model_path,
+                model=self.model_path,
                 max_tokens=1000,
                 messages=messages,
                 tools=self.available_tools,
                 
-
-
-
-
-
             )
         return response
     async def process_response(self, response:Union[Message,ChatCompletion], messages:list[dict]):
@@ -142,22 +143,22 @@ class MCPClient:
         and return the final text
         if not need to call tools, just return the final text
         """
-
-
+        
+        
         # process response and handle tool calls
-        if self.server_name == "OpenAI":
+        if self.server_api == "OpenAI":
             logging.info(f"response: \n{response}")
             # warning whether the response finish reason is "tool_calls"
             logging.warning(f"response finish reason: {response.choices[0].finish_reason}")
             message = response.choices[0].message
-
+           
             if message.tool_calls!=[]:
                 logging.info(f"need to call tools")
-
+                
                 # or
                 # messages.append(message)
-
-
+               
+            
                 # use response.choices[0].message.model_dump() transfer to dict，but still need to transfer further. because the whole arguments args is a str 
                 tool_calls = message.model_dump()['tool_calls']
                 # for tool in tool_calls:
@@ -165,7 +166,7 @@ class MCPClient:
                 messages.append(
                    {"role":"assistant", "content": message.content ,"tool_calls": tool_calls}
                 )# whether content has impact on the result:message.content.strip()
-
+                    
                 # execute tool calls functions
                 for tool_call in message.tool_calls:
 
@@ -176,11 +177,19 @@ class MCPClient:
 
                     # print(type(tool_args))
                     # pdb.set_trace()
-
+                    
                     # Execute tool call
                     logging.info(f"Calling tool {tool_name} with args {tool_args}")
 
-                    tool_result = await self.session.call_tool(tool_name, json.loads(tool_args))
+                    # search for the tool in which server
+                    for server in self.servers: 
+                        tools = await server.list_tools()
+                        if any(tool.name == tool_name for tool in tools):
+                            try:
+                                tool_result = await server.session.call_tool(tool_name, json.loads(tool_args))
+                            except Exception as e:
+                                logging.error(f"Error calling tool {tool_name}: {e}")
+                                return f"Error calling tool {tool_name}: {e}"
 
                     logging.info(f"Tool: {tool_name} \nresult: {tool_result}")
 
@@ -196,9 +205,9 @@ class MCPClient:
 
             return response.choices[0].message.model_dump()
             # return response.choices[0].content
-        elif self.server_name == "Anthropic":
+        elif self.server_api == "Anthropic":
             pass
-
+    
 
     async def process_query(self, query: str,messages:list[dict]=[]) -> str:
         """Process a query using Claude and available tools"""
@@ -240,21 +249,26 @@ class MCPClient:
             except Exception as e:
                 print(f"\nError: {e}")
                 traceback.print_exc()
-    async def cleanup(self):
-        """Clean up resources"""
-        await self.exit_stack.aclose()
-
+    
 async def main():
-    if len(sys.argv) < 2:
-        print("Usage: python client.py <path_to_server_script>")
-        sys.exit(1)
+    
+    # Load mcp servers 
+    config_path = "/mnt/nlp/gaoqiang/project/training/server/mcp_server_config.json5"
+    server_config = load_config(config_path)
+    servers = [
+        MCPServer(name, srv_config)
+        for name, srv_config in server_config["mcpServers"].items()
+    ]
 
-    client = MCPClient()
+    # Initialize client
+    client = MCPClient(servers=servers)
+    await client.initialize_tools()
     try:
-        await client.connect_to_server(sys.argv[1])
+
         await client.chat_loop()
     finally:
-        await client.cleanup()
+        for server in servers:
+            await server.cleanup()
 
 if __name__ == "__main__":
     import sys

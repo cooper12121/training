@@ -12,16 +12,21 @@ from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+
+# from mcp.server.lowlevel.server import Server
+from mcp.server import FastMCP,Server
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-class Server:
+class MCPServer(FastMCP):
     """Manages MCP server connections and tool execution."""
 
     def __init__(self, name: str, config: dict[str, Any]) -> None:
-        self.name: str = name
+        super().__init__(self,name)
+        # self.name: str = name
         self.config: dict[str, Any] = config
         self.stdio_context: Any | None = None
         self.session: ClientSession | None = None
@@ -33,6 +38,7 @@ class Server:
 
     async def initialize(self) -> None:
         """Initialize the server connection."""
+        print(self.config)
         command = (
             shutil.which("npx")
             if self.config["command"] == "npx"
@@ -58,6 +64,8 @@ class Server:
             )
             await session.initialize()
             self.session = session
+            
+        
         except Exception as e:
             logging.error(f"Error initializing server {self.name}: {e}")
             await self.cleanup()
@@ -72,6 +80,111 @@ class Server:
                 self.stdio_context = None
             except Exception as e:
                 logging.error(f"Error during cleanup of server {self.name}: {e}")
+    
+    async def list_tools(self) -> list[Any]:
+        tools_response = await self.session.list_tools()
+        return tools_response.tools
+    
+
+#     async def list_tools(self) -> list[Any]:
+#         """List available tools from the server.
+
+#         Returns:
+#             A list of available tools.
+
+#         Raises:
+#             RuntimeError: If the server is not initialized.
+#         """
+#         if not self.session:
+#             raise RuntimeError(f"Server {self.name} not initialized")
+
+#         tools_response = await self.session.list_tools()
+#         tools = []
+
+#         for item in tools_response:
+#             if isinstance(item, tuple) and item[0] == "tools":
+#                 tools.extend(
+#                     Tool(tool.name, tool.description, tool.inputSchema)
+#                     for tool in item[1]
+#                 )
+
+#         return tools
+#     async def execute_tool(
+#         self,
+#         tool_name: str,
+#         arguments: dict[str, Any],
+#         retries: int = 2,
+#         delay: float = 1.0,
+#     ) -> Any:
+#         """Execute a tool with retry mechanism.
+
+#         Args:
+#             tool_name: Name of the tool to execute.
+#             arguments: Tool arguments.
+#             retries: Number of retry attempts.
+#             delay: Delay between retries in seconds.
+
+#         Returns:
+#             Tool execution result.
+
+#         Raises:
+#             RuntimeError: If server is not initialized.
+#             Exception: If tool execution fails after all retries.
+#         """
+#         if not self.session:
+#             raise RuntimeError(f"Server {self.name} not initialized")
+
+#         attempt = 0
+#         while attempt < retries:
+#             try:
+#                 logging.info(f"Executing {tool_name}...")
+#                 result = await self.session.call_tool(tool_name, arguments)
+
+#                 return result
+
+#             except Exception as e:
+#                 attempt += 1
+#                 logging.warning(
+#                     f"Error executing tool: {e}. Attempt {attempt} of {retries}."
+#                 )
+#                 if attempt < retries:
+#                     logging.info(f"Retrying in {delay} seconds...")
+#                     await asyncio.sleep(delay)
+#                 else:
+#                     logging.error("Max retries reached. Failing.")
+#                     raise
+# class Tool:
+#     """Represents a tool with its properties and formatting."""
+
+#     def __init__(
+#         self, name: str, description: str, input_schema: dict[str, Any]
+#     ) -> None:
+#         self.name: str = name
+#         self.description: str = description
+#         self.input_schema: dict[str, Any] = input_schema
+
+#     def format_for_llm(self) -> str:
+#         """Format tool information for LLM.
+
+#         Returns:
+#             A formatted string describing the tool.
+#         """
+#         args_desc = []
+#         if "properties" in self.input_schema:
+#             for param_name, param_info in self.input_schema["properties"].items():
+#                 arg_desc = (
+#                     f"- {param_name}: {param_info.get('description', 'No description')}"
+#                 )
+#                 if param_name in self.input_schema.get("required", []):
+#                     arg_desc += " (required)"
+#                 args_desc.append(arg_desc)
+
+#         return f"""
+# Tool: {self.name}
+# Description: {self.description}
+# Arguments:
+# {chr(10).join(args_desc)}
+# """
 
 
 
