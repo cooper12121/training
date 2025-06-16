@@ -144,6 +144,15 @@ class SupervisedDataset(Dataset):
         return len(self.input_ids)
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         return dict(input_ids=self.input_ids[i], labels=self.labels[i]) 
+    
+    def shuffle(self, seed=None):
+        """In-place shuffle of the dataset, keeping input_ids and labels in sync."""
+        if seed is not None:
+            random.seed(seed)
+        indices = list(range(len(self.input_ids)))
+        random.shuffle(indices)
+        self.input_ids = [self.input_ids[i] for i in indices]
+        self.labels = [self.labels[i] for i in indices]
 
 @dataclass
 class DataCollatorForSupervisedDataset(object):

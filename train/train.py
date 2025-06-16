@@ -291,6 +291,11 @@ def train():
         print_rank_0(f"stage: sft,start to load dataset")
 
         train_dataset = SupervisedDataset(data_args.data_path,tokenizer=tokenizer,format_mode="llama2")
+        # how to shuffle the dataset
+        
+        train_dataset = datasets.Dataset.from_list(list(train_dataset)) # Convert to list if it's an iterator
+        train_dataset.shuffle()
+        
         data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
 
         # train_dataset = datasets.Dataset.from_list(load_data(data_args.data_path))
