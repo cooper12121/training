@@ -1,125 +1,92 @@
+#!/usr/bin/env bash
+# Run inside a Merlin worker or Arnold container, once per node by default.
+set -euo pipefail
+WORKSPACE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# ==================== 配置区：日常只修改这里 ====================
+# 填写任务容器内可访问的路径；环境变量仍可覆盖这些默认值。
+MODEL_PATH="${MODEL_PATH:-}"                 # 例如 /mnt/models/Qwen2.5-7B-Instruct
+DATA_PATH="${DATA_PATH:-}"                   # 例如 /mnt/data/sft_train.json
+OUTPUT_DIR="${OUTPUT_DIR:-}"                 # 持久化目录；调试和正式训练分开
 
+TRAIN_MODE="${TRAIN_MODE:-train}"            # debug / train；--debug 可临时切换
+DEBUG_STEPS="${DEBUG_STEPS:-5}"
+EPOCHS="${EPOCHS:-2}"
+MICRO_BATCH_SIZE="${MICRO_BATCH_SIZE:-1}"
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
+MAX_LENGTH="${MAX_LENGTH:-4096}"
+LEARNING_RATE="${LEARNING_RATE:-2e-5}"
+WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
+LR_SCHEDULER_TYPE="${LR_SCHEDULER_TYPE:-cosine}"
+LOGGING_STEPS="${LOGGING_STEPS:-1}"
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-3}"
+SEED="${SEED:-42}"
+BF16="${BF16:-True}"
+GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-True}"
+REPORT_TO="${REPORT_TO:-none}"
 
-
-
-# MASTER_ADDR=$CHIEF_IP
-MASTER_PORT=60001
-NUM_GPUS=$NODE_NUM
-
-
-WORKSPACE=/mnt/nlp/gaoqiang/training
-export PYTHONPATH=${WORKSPACE}
-
-
-
-MODEL_PATH=/mnt/nlp/gaoqiang/ckpt/Llama-2-7b-chat-hf
-# MODEL_PATH=/mnt/nlp/gaoqiang/ckpt/Qwen2-0.5B-Instruct
-DATA_PATH=/mnt/nlp/gaoqiang/training/sft_train.json
-# DATA_PATH=/mnt/nlp/gaoqiang/training/retrieval_train.json
-EVAL_PATH=None
-
-EVAL_OUTPUT_PATH=None
-MODEL_OUTPUT_DIR=$WORKSPACE/output/
-MODEL_TYPE=llama2-7b-Instruct
-TASK=retrieval
-# data config
-FORMAT_MODE=llama2
-MAX_RESPONSE=1
-
-
-# training setups
-#---------------------------------------------------------------------------------
-# BATCH_SIZE=
-MICRO_BATCH_SIZE=8
-# NUM_GPUS=8
-echo $NUM_GPUS
-echo $MICRO_BATCH_SIZE
-
-GRADIENT_ACCUMULATION_STEP=1
-
-
-MAX_LENGTH=4096
-
-
-PADDING_SIDE="right"
-TRUNCATION_SIDE="left"
-POOLING_TYPE="last"
-EPOCH=1
-LEARNING_RATE=2e-5
-
-
-
-
-# deepspeed setups
-#---------------------------------------------------------------------------------
-# DS_ZERO=3
-# if [[ $DS_ZERO = 2 ]]; then
-#     DEEPSPEED=${WORKSPACE}/configs/default_zero2_config.json
-# else
-#     DEEPSPEED=${WORKSPACE}/configs/default_offload_opt_param.json
-# fi
-
-# TMP_DIR=${WORKSPACE}/tmp
-# mkdir -p $TMP_DIR
-# echo $NODE_IP_LIST > ${TMP_DIR}/env.txt
- 
-# # generate hostfile and pssh.hosts
-# sed "s/:/ slots=/g" ${TMP_DIR}/env.txt | sed "s/,/\n/g" >  ${TMP_DIR}/hostfile
-# sed "s/:.//g" ${TMP_DIR}/env.txt | sed "s/,/\n/g" >  ${TMP_DIR}/pssh.hosts
-
-DEEPSPEED=${WORKSPACE}/configs/ds_config_zero3.json
-# DEEPSPEED=${WORKSPACE}/configs/ds_config_zero2_no_offload.json
-# DEEPSPEED=${WORKSPACE}/configs/ds_config_zero1.json
-
-
-# output config
-#----------------------------------------------------------------------------------
-EXPERIMENT_NAME=$(date +'%m-%d')_${TASK}_${MODEL_TYPE}_${DATA_NAME}_bs_${BATCH_SIZE}_maxlen_${MAX_LENGTH}_pad_${PADDING_SIDE}_lr_${LEARNING_RATE}_format_${FORMAT_MODE}
-
-OUTPUT_DIR=${MODEL_OUTPUT_DIR}/${EXPERIMENT_NAME}
-LOGS_PATH=${OUTPUT_DIR}/logs
-
-mkdir -p $OUTPUT_DIR
-mkdir -p $LOGS_PATH
-
-
-echo "begin experiment ${EXPERIMENT_NAME}"
-
-
-CURRENT_TIME=$(date +'%m-%d-%Y_%H:%M:%S')
-
-# export CMD="deepspeed   --hostfile ${TMP_DIR}/hostfile --master_addr ${MASTER_ADDR} --master_port=${MASTER_PORT} finetune.py \
-export CMD="deepspeed  --include localhost:0,3 --master_port=${MASTER_PORT} train/train.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path $DATA_PATH \
-    --eval_path $EVAL_PATH \
-    --eval_output_path $EVAL_OUTPUT_PATH \
-    --output_dir $OUTPUT_DIR\
-    --do_train True \
-    --do_eval False \
-    --padding_side $PADDING_SIDE \
-    --num_train_epochs 2 \
-    --model_max_length $MAX_LENGTH \
-    --per_device_train_batch_size ${MICRO_BATCH_SIZE} \
-    --per_device_eval_batch_size 1\
-    --gradient_accumulation_steps ${GRADIENT_ACCUMULATION_STEP} \
-    --evaluation_strategy "no" \
-    --eval_steps 1   \
-    --eval_accumulation_steps 1 \
-    --save_strategy "epoch" \
-    --save_steps 0.1 \
-    --save_total_limit 15 \
-    --learning_rate $LEARNING_RATE \
-    --warmup_ratio 0.05 \
-    --logging_steps 1 \
-    --lr_scheduler_type "cosine" \
-    --gradient_checkpointing True \
-    --report_to "tensorboard" \
-    --deepspeed $DEEPSPEED \
-    --bf16 True \
-    --stage sft \
-    --use_lora False"
-
-echo $CMD
-eval ${CMD} 2>&1 | tee -a ${LOGS_PATH}/log_${CURRENT_TIME}.txt
-set +x
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+DEEPSPEED_CONFIG="${DEEPSPEED_CONFIG:-}"      # 留空使用 DDP
+LAUNCH_MODE="${LAUNCH_MODE:-node}"            # 平台按每 GPU 启动进程时改为 process
+NPROC_PER_NODE="${NPROC_PER_NODE:-gpu}"
+NNODES="${NNODES:-1}"
+# 多节点的 NODE_RANK / MASTER_ADDR / MASTER_PORT 由任务环境提供。
+# 不要将所有节点的 NODE_RANK 固定为同一个值。
+EXTRA_TRAIN_ARGS=()                          # 例如 (--weight_decay 0.01)
+# ==================== 配置区结束 ====================
+MODE="$TRAIN_MODE"
+if [[ "${1:-}" == "--debug" ]]; then
+    MODE=debug
+    shift
+fi
+if [[ "$MODE" != train && "$MODE" != debug ]]; then
+    echo 'TRAIN_MODE must be train or debug' >&2
+    exit 2
+fi
+: "${MODEL_PATH:?Set MODEL_PATH to a model visible inside the worker/job}"
+: "${DATA_PATH:?Set DATA_PATH to training data visible inside the worker/job}"
+: "${OUTPUT_DIR:?Set OUTPUT_DIR to persistent storage; separate debug/train runs}"
+export PYTHONPATH="$WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
+args=(
+    --model_name_or_path "$MODEL_PATH" --data_path "$DATA_PATH"
+    --output_dir "$OUTPUT_DIR" --do_train True --do_eval False
+    --num_train_epochs "$EPOCHS" --model_max_length "$MAX_LENGTH"
+    --per_device_train_batch_size "$MICRO_BATCH_SIZE"
+    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS"
+    --learning_rate "$LEARNING_RATE" --warmup_ratio "$WARMUP_RATIO"
+    --lr_scheduler_type "$LR_SCHEDULER_TYPE" --logging_steps "$LOGGING_STEPS" --report_to "$REPORT_TO"
+    --gradient_checkpointing "$GRADIENT_CHECKPOINTING" --ddp_find_unused_parameters False --bf16 "$BF16"
+    --eval_strategy no --save_strategy epoch --save_total_limit "$SAVE_TOTAL_LIMIT" --seed "$SEED"
+    --stage sft --use_lora False
+)
+if [[ -n "$DEEPSPEED_CONFIG" ]]; then
+    args+=(--deepspeed "$DEEPSPEED_CONFIG")
+fi
+args+=("${EXTRA_TRAIN_ARGS[@]}" "$@")
+if [[ "$MODE" == debug ]]; then
+    if [[ ! "$DEBUG_STEPS" =~ ^[1-9][0-9]*$ ]]; then
+        echo 'DEBUG_STEPS must be a positive integer' >&2
+        exit 2
+    fi
+    args+=(--overwrite_output_dir True --max_steps "$DEBUG_STEPS" --save_strategy no --skip_final_save True)
+fi
+case "$LAUNCH_MODE" in
+    node)
+        # Preserve the scheduler's CUDA_VISIBLE_DEVICES allocation.
+        launch=("$PYTHON_BIN" -m torch.distributed.run --nproc_per_node "$NPROC_PER_NODE")
+        if [[ "$NNODES" == 1 ]]; then
+            launch+=(--standalone --nnodes 1)
+        else
+            : "${NODE_RANK:?Set NODE_RANK for multi-node training}"
+            : "${MASTER_ADDR:?Set MASTER_ADDR for multi-node training}"
+            : "${MASTER_PORT:?Set MASTER_PORT for multi-node training}"
+            launch+=(--nnodes "$NNODES" --node_rank "$NODE_RANK"
+                     --master_addr "$MASTER_ADDR" --master_port "$MASTER_PORT")
+        fi
+        ;;
+    process)
+        # Use only when the platform already starts one process per GPU.
+        launch=("$PYTHON_BIN")
+        ;;
+    *) echo 'LAUNCH_MODE must be node or process' >&2; exit 2 ;;
+esac
+exec "${launch[@]}" "$WORKSPACE/train/train.py" "${args[@]}"

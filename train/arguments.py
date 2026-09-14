@@ -38,9 +38,9 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    data_path: str = field(default=None, metadata={"help": "Path to the training data."}),
-    eval_path: str = field(default=None, metadata={"help": "Path to the eval data."}),
-    eval_output_path: str = field(default=None, metadata={"help": "Path to the eval data."}),
+    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    eval_path: str = field(default=None, metadata={"help": "Path to the eval data."})
+    eval_output_path: str = field(default=None, metadata={"help": "Path to the eval data."})
 
 
 @dataclass
@@ -50,18 +50,18 @@ class TrainingArguments(transformers.TrainingArguments):
     model_max_length: int = field(
         default=512,
         metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
-    ),
-    do_train: Optional[bool] = field(default=True),
-    do_eval: Optional[bool] = field(default=True),
+    )
+    do_train: Optional[bool] = field(default=True)
+    do_eval: Optional[bool] = field(default=False)
     # save_safetensors: Optional[bool] = field(
     #         default=False,
     #         metadata={
     #             "help": "Use safetensors saving and loading for state dicts instead of default torch.load and torch.save."
     #         },
     # )
-    padding_side:Optional[str] = field(default="right"),
-    stage: Optional[Literal['pretraining','sft','dpo','ppo']] = field(default="sft"),
-
+    padding_side:Optional[str] = field(default="right")
+    stage: Optional[Literal['pretraining','sft','dpo','ppo']] = field(default="sft")
+    skip_final_save: bool = field(default=False, metadata={"help": "Skip final weights/state export for smoke runs."})
 
 
 # @dataclass

@@ -87,7 +87,7 @@ class SupervisedDataset(Dataset):
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, format_mode:str="qwen2",data_type:str="train") -> None:
         super(SupervisedDataset).__init__()
 
-        rank = torch.distributed.get_rank()
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
         if ".xlsx" in data_path:
             if data_type=="train":
@@ -100,8 +100,9 @@ class SupervisedDataset(Dataset):
             data_list = json.load(open(data_path,'r'))
         if rank==0:
             print_rank_0(f"len of data_list:{len(data_list)}")
-        if data_type=="train":
-            random.shuffle(data_list)
+        if not data_list:
+            raise ValueError(f"Dataset is empty: {data_path}")
+        # Trainer's seeded sampler controls shuffle consistently across ranks.
             
         if format_mode=="qwen2":
             """"""

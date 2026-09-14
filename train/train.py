@@ -23,7 +23,7 @@ from arguments import ModelArguments, DataArguments, TrainingArguments
 from data_utils import SupervisedDataset, DataCollatorForSupervisedDataset,DataCollatorForSupervisedDataset_inside
 # from load_model import get_last_checkpoint, safe_save_model_for_hf_trainer, build_model,SavePeftModelCallback
 
-sys.path.append("/apdcephfs_qy3/share_301372554/share_info/qianggao/")
+
 
 
 # -*- encoding: utf-8 -*-
@@ -126,7 +126,8 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
 
 def build_model(model_args, training_args, checkpoint_dir):
     if not model_args.use_lora: assert model_args.bits in [16, 32]
-    compute_dtype = (torch.bfloat16 if training_args.bf16 else torch.float16)
+    compute_dtype = (torch.bfloat16 if training_args.bf16 else
+                     torch.float16 if training_args.fp16 else torch.float32)
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         # quantization_config=BitsAndBytesConfig(
@@ -149,9 +150,7 @@ def build_model(model_args, training_args, checkpoint_dir):
             logger.info('='*80)
             logger.info('Your GPU supports bfloat16, you can accelerate training with the argument --bf16')
             logger.info('='*80)
-    setattr(model, 'model_parallel', True)
-    setattr(model, 'is_parallelizable', True)
-    model.config.torch_dtype=torch.bfloat16 if training_args.bf16 else torch.float32
+    model.config.torch_dtype = compute_dtype
 
     
     # Tokenizer
@@ -229,6 +228,17 @@ def load_data(file_path:str):
 def train():
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    transformers.set_seed(training_args.seed)
+    if training_args.stage != "sft":
+        raise ValueError("The Merlin training entry currently supports --stage sft only")
+    if model_args.bits not in (16, 32):
+        raise ValueError("This entry supports 16/32-bit weights; quantized training is not configured")
+    if model_args.use_lora:
+        raise ValueError("LoRA in this legacy entry is incomplete; use --use_lora False")
+    if not data_args.data_path:
+        raise ValueError("--data_path is required")
+    if training_args.do_eval and not data_args.eval_path:
+        raise ValueError("--eval_path is required when --do_eval True")
     log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
@@ -244,7 +254,7 @@ def train():
         model_args.model_name_or_path,
         model_max_length=training_args.model_max_length,
         padding_side=training_args.padding_side,
-        use_fast=False,
+        use_fast=True,
         trust_remote_code=True
     )
 
@@ -262,10 +272,14 @@ def train():
     
    
     # if training_args.local_rank==0:
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
    
     
-    resume_from_checkpoint_dir = get_last_checkpoint(training_args.output_dir)
+    resume_from_checkpoint_dir = (
+        None if training_args.overwrite_output_dir
+        else get_last_checkpoint(training_args.output_dir)
+    )
     
     print_rank_0(f"\n\n****resulme from :{resume_from_checkpoint_dir}****\n\n")
     model = build_model(model_args, training_args, resume_from_checkpoint_dir)
@@ -294,7 +308,7 @@ def train():
         # how to shuffle the dataset
         
         train_dataset = datasets.Dataset.from_list(list(train_dataset)) # Convert to list if it's an iterator
-        train_dataset.shuffle()
+        train_dataset = train_dataset.shuffle(seed=training_args.seed)
         
         data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
 
@@ -304,7 +318,11 @@ def train():
 
         print_rank_0(f"Training dataset samples:{len(train_dataset)}")
 
-        data_module = dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
+        eval_dataset = None
+        if training_args.do_eval:
+            eval_dataset = SupervisedDataset(data_args.eval_path, tokenizer=tokenizer,
+                                             format_mode="llama2", data_type="test")
+        data_module = dict(train_dataset=train_dataset, eval_dataset=eval_dataset, data_collator=data_collator)
         trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, compute_metrics=None,**data_module)
         if model_args.use_lora:
             trainer.add_callback(SavePeftModelCallback)
@@ -327,11 +345,14 @@ def train():
     if training_args.do_train:
         logger.info("*** Training ***")
         trainer.train(resume_from_checkpoint = resume_from_checkpoint_dir)
+        if training_args.skip_final_save:
+            return
         trainer.save_state()
         # if not model_args.use_lora:
         #     safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
         trainer.save_model(output_dir=training_args.output_dir)
-        # tokenizer.save_pretrained(save_directory=training_args.output_dir)
+        if trainer.is_world_process_zero():
+            tokenizer.save_pretrained(save_directory=training_args.output_dir)
 
 
 if __name__ == "__main__":
